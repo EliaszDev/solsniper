@@ -1,146 +1,127 @@
-<div align="center">
-
 # 🎯 SolSniper
 
-**Semi-autonomous Solana Trading Agent**  
-*Powered by Kimi K2 · Built on nanobot · Runs locally*
+> A semi-autonomous Solana trading agent powered by **Kimi K2**, built on the `nanobot` multi-agent framework.  
+> Two brain modules — **Whale Tracker** & **Token Sniper** — find alpha, score it, and propose trades for your approval before execution.
 
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://python.org)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![Solana](https://img.shields.io/badge/Solana-9945FF?logo=solana&logoColor=white)](https://solana.com)
-[![License](https://img.shields.io/badge/License-Private-red)]()
-
-</div>
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://python.org)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?logo=solana)](https://solana.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-## What is SolSniper?
+## ✨ What It Does
 
-SolSniper is a **personal, semi-autonomous trading assistant** for the Solana ecosystem. It runs two parallel AI-powered agents that scan the chain for alpha — one tracks high-profit wallets, the other snipes new token launches. Every trade proposal lands in a clean React UI where **you** approve or reject before execution. No blind automation. No leaked keys. Pure local alpha.
+SolSniper runs two parallel agents that monitor the Solana chain in real time. Neither trades without **your explicit approval**.
 
-> ⚠️ **This is experimental software for personal use only.** Start with $5–$10 positions. Most new tokens fail.
+### 🐋 Whale Tracker Agent
+Monitors a curated list of high-profit wallets via the **Helius API**.
+- Scores wallets by **win rate**, **average P&L**, and **recency**
+- When a tracked whale buys a token → proposes a **copy trade** sized to your budget (default $50)
+- Includes suggested **take-profit** and **stop-loss** levels
+
+### 🚀 Token Sniper Agent
+Listens to **PumpDev WebSocket** for brand-new token launches.
+- Scores every launch on **volume velocity**, **buy pressure**, **liquidity depth**, and **safety**
+- Flags rug risks via **RugCheck.xyz** + **Solscan** (mint authority, freeze authority, holder concentration)
+- If the score passes threshold → proposes a **snipe entry** with layered TP targets
+
+### 🖐️ Human-in-the-Loop
+All proposals land in a **React UI** with a 3-minute countdown. You click **Approve** or **Reject**. No automated execution.
 
 ---
 
-## 🧠 Two-Agent Architecture
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      SolSniper Engine                        │
-├──────────────────────────┬──────────────────────────────────┤
-│    🐋 Whale Tracker      │      🚀 Token Sniper             │
-│                          │                                  │
-│  Helius Wallet API       │   PumpDev WebSocket              │
-│  ↓                       │   ↓                              │
-│  Parse SWAP events       │   New token detected             │
-│  ↓                       │   ↓                              │
-│  Score P&L / Win rate    │   DexScreener pair data          │
-│  ↓                       │   ↓                              │
-│  Kimi K2 evaluates       │   Numeric launch score           │
-│  ↓                       │   ↓                              │
-│  COPY TRADE proposal     │   RugCheck + Solscan safety      │
-│     ($50 max)            │   ↓                              │
-│                          │   Kimi K2 evaluates              │
-│                          │   ↓                              │
-│                          │   SNIPE proposal ($50 max)       │
-├──────────────────────────┴──────────────────────────────────┤
-│              📋 Proposal Queue → React UI                    │
-│                   [Approve]  [Reject]                        │
-│                         ↓                                  │
-│              Jupiter Swap API → On-chain                     │
+│                        React UI (Port 5173)                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
+│  │  Live Feed   │  │  Portfolio   │  │  Whale Watchlist │  │
+│  │  Approve/Rej │  │  Open Pos    │  │  Add / Remove    │  │
+│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘  │
+└─────────┼─────────────────┼───────────────────┼────────────┘
+          │                 │                   │
+          └─────────────────┴───────────────────┘
+                            │
+                    WebSocket / REST
+                            │
+┌─────────────────────────────────────────────────────────────┐
+│                   FastAPI Backend (Port 8000)               │
+│                                                             │
+│   ┌──────────────┐         ┌──────────────┐                │
+│   │ Whale Agent  │◄────────┤ Helius API   │                │
+│   │ (Kimi K2)    │         │ Wallet Hist. │                │
+│   └──────┬───────┘         └──────────────┘                │
+│          │                                                  │
+│   ┌──────┴───────┐         ┌──────────────┐                │
+│   │ Sniper Agent │◄────────┤ PumpDev WS   │                │
+│   │ (Kimi K2)    │         │ DexScreener  │                │
+│   └──────┬───────┘         └──────────────┘                │
+│          │                                                  │
+│   ┌──────┴───────┐         ┌──────────────┐                │
+│   │  Proposal    │◄───────┤ RugCheck     │                │
+│   │  Engine      │         │ Solscan      │                │
+│   └──────┬───────┘         └──────────────┘                │
+│          │                                                  │
+│   ┌──────┴───────┐         ┌──────────────┐                │
+│   │  Jupiter     │         │  SQLite      │                │
+│   │  Swap API    │         │  (SQLAlchemy)│                │
+│   └──────────────┘         └──────────────┘                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ Features
-
-### 🐋 Whale Tracker Agent
-- **Monitors** a curated list of high-profit Solana wallets via Helius API
-- **Scores** each wallet by win rate, average realized P&L, recency, and trade frequency
-- **Detects** buy/sell swaps in real time (30s polling)
-- **Proposes** copy trades adjusted to your volume ($50 max default) with auto TP/SL levels
-- Tracks open positions and unrealized P&L
-
-### 🚀 Token Sniper Agent
-- **Listens** to PumpDev WebSocket for brand-new token launches (~500ms latency)
-- **Scores** launches on volume velocity, buy pressure, liquidity depth, age, and safety
-- **Screens** every candidate through RugCheck.xyz + Solscan holder analysis
-- **Proposes** snipe entries with layered take-profit targets
-- Auto-discards honeypots, mint-authority tokens, and concentrated supply rugs
-
-### 🖥️ React Dashboard
-- **Live Feed** — real-time proposal cards with countdown timers
-- **Portfolio** — open positions, unrealized P&L, equity curve
-- **Whale Watchlist** — add/remove wallets, see scores & history
-- **Settings** — position size, slippage, thresholds, API keys
-- **WebSocket** — instant updates, no page refresh
-
----
-
-## 🛠 Tech Stack
+## 🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
-| **Agent Framework** | `nanobot` (multi-agent orchestration) |
-| **LLM** | Kimi K2 via API |
-| **Whale Data** | Helius Wallet API (1M credits/mo free) |
-| **New Token Feed** | PumpDev WebSocket (free, no key) |
-| **Token Pair Data** | DexScreener REST API (free, no key) |
-| **Safety / Red Flags** | RugCheck.xyz API + Solscan API |
-| **Swap Execution** | Jupiter Swap API v6 (free) |
-| **Backend** | FastAPI + native WebSockets + asyncio |
-| **Database** | SQLite (SQLAlchemy ORM) |
-| **Frontend** | React 18 + Vite + Tailwind CSS + Recharts |
-| **Runtime** | Python 3.11+, Node 20+ |
+| Agent Framework | `nanobot` |
+| LLM | Kimi K2 via API |
+| Whale Data | Helius Wallet API (free tier) |
+| New Token Feed | PumpDev WebSocket |
+| Pair / Market Data | DexScreener REST API |
+| Safety / Red Flags | RugCheck.xyz + Solscan API |
+| Swap Execution | Jupiter Swap API v6 |
+| Backend | FastAPI + WebSockets + `asyncio` |
+| Database | SQLite (SQLAlchemy) |
+| Frontend | React 18 + Tailwind CSS + Recharts |
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Clone & Setup Backend
+### Prerequisites
+- Python 3.11+
+- Node.js 20+
+- A Solana wallet keypair (paper trade mode works without real funds)
+- Free API keys: [Helius](https://helius.xyz), [Kimi](https://platform.moonshot.cn)
+
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/EliaszDev/solsniper.git
 cd solsniper
 
-# Create virtual environment
+# Backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate  # Windows: venv\Scriptsctivate
 pip install -r requirements.txt
 
-# Copy env template and fill in your keys
-cp .env.example .env
-# Edit .env with your real API keys
-```
-
-### 2. Setup Frontend
-
-```bash
+# Frontend
 cd frontend
 npm install
-npm run dev
 ```
 
-### 3. Run Backend
+### 2. Configure Environment
 
 ```bash
-cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+cp .env.example .env
 ```
 
-### 4. Open Dashboard
-
-Navigate to `http://localhost:5173` — the React dev server proxies API calls to FastAPI automatically.
-
----
-
-## ⚙️ Configuration
-
-Edit `.env` with your credentials:
+Edit `.env` with your keys:
 
 ```env
 HELIUS_API_KEY=your_helius_key
@@ -156,58 +137,144 @@ PROPOSAL_EXPIRY_SECONDS=180
 SLIPPAGE_BPS=300
 ```
 
-> 🔒 **Never commit `.env` to git.** It is already ignored by `.gitignore`.
+> ⚠️ **Never commit `.env`**. It is already gitignored.
+
+### 3. Run
+
+```bash
+# Terminal 1 — Backend
+cd backend
+uvicorn main:app --reload --port 8000
+
+# Terminal 2 — Frontend
+cd frontend
+npm run dev
+```
+
+Open `http://localhost:5173`.
 
 ---
 
-## 📡 API Endpoints
+## 📁 Repository Structure
 
-| Method | Path | Description |
+```
+solsniper/
+├── backend/
+│   ├── main.py              # FastAPI entrypoint + WebSocket hub
+│   ├── config.py            # Pydantic settings from .env
+│   ├── database/
+│   │   ├── models.py        # SQLAlchemy ORM
+│   │   └── db.py            # SQLite engine + sessions
+│   ├── agents/
+│   │   ├── base_agent.py    # Shared nanobot / Kimi K2 config
+│   │   ├── whale_agent.py   # Whale Tracker logic
+│   │   └── sniper_agent.py  # Token Sniper logic
+│   ├── services/
+│   │   ├── helius.py        # Helius API client
+│   │   ├── dexscreener.py   # DexScreener REST client
+│   │   ├── pumpdev_ws.py    # PumpDev WebSocket listener
+│   │   ├── rugcheck.py      # Safety checks
+│   │   └── jupiter.py       # Quote + swap execution
+│   ├── scoring/
+│   │   ├── whale_scorer.py  # Wallet P&L / win-rate engine
+│   │   └── launch_scorer.py # Token launch score 0-100
+│   ├── routers/
+│   │   ├── proposals.py     # Approve / reject endpoints
+│   │   ├── portfolio.py     # Positions + history
+│   │   ├── wallets.py       # Watchlist CRUD
+│   │   └── ws.py            # WebSocket feed
+│   └── tasks/
+│       ├── whale_poll.py    # Background wallet polling
+│       └── sniper_poll.py   # Background PumpDev listener
+├── frontend/
+│   └── src/
+│       ├── components/      # Feed, ProposalCard, Portfolio, etc.
+│       ├── hooks/           # useWebSocket
+│       └── api/             # Axios client
+├── .env.example
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 🔌 API Overview
+
+| Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/health` | System status |
+| `GET` | `/health` | Health check |
 | `GET` | `/proposals` | List pending proposals |
-| `POST` | `/proposals/{id}/approve` | Approve & execute via Jupiter |
+| `POST` | `/proposals/{id}/approve` | Approve → Jupiter execution |
 | `POST` | `/proposals/{id}/reject` | Reject proposal |
 | `GET` | `/portfolio/positions` | Open positions + live P&L |
-| `GET` | `/portfolio/history` | Closed trade history |
+| `GET` | `/portfolio/history` | Closed trades |
 | `GET` | `/wallets` | Whale watchlist |
-| `POST` | `/wallets` | Add wallet to watchlist |
+| `POST` | `/wallets` | Add wallet |
 | `DELETE` | `/wallets/{address}` | Remove wallet |
-| `WS` | `/ws/feed` | Live proposal + position stream |
+| `WS` | `/ws/feed` | Real-time proposal + position stream |
 
 ---
 
-## 🗓 Build Roadmap
+## 🤝 Contributing
 
-| Week | Milestone |
-|---|---|
-| **Week 1** | Data layer — Helius client, PumpDev WS, DexScreener client |
-| **Week 2** | Scoring engines + Kimi K2 agent integration |
-| **Week 3** | Jupiter execution + FastAPI backend + WebSocket hub |
-| **Week 4** | React frontend — Feed, Portfolio, Watchlist |
-| **Week 5** | Live testing ($5–$10), polish, audio alerts |
-| **Week 6** | Tuning thresholds, backtesting script, documentation |
+We welcome contributors! Solana trading tooling is a community effort.
+
+### How to Contribute
+
+1. **Fork** the repo and clone your fork
+2. Create a **feature branch**: `git checkout -b feature/amazing-thing`
+3. **Install pre-commit hooks** (optional but appreciated):
+   ```bash
+   pip install pre-commit
+   pre-commit install
+   ```
+4. Make your changes, add tests if applicable
+5. **Commit** with clear messages: `feat: add holder concentration filter`
+6. **Push** and open a **Pull Request** against `main`
+
+### Good First Issues
+
+Look for issues tagged `good first issue` or `help wanted`. Some ideas:
+- Add more safety checks (honeypot detection, liquidity lock verification)
+- Improve the launch scoring algorithm
+- Add Telegram / Discord bot notifications
+- Build a backtesting mode with historical DexScreener data
+- Add multi-wallet portfolio aggregation
+
+### Code Style
+- **Python**: PEP 8, type hints encouraged, `black` + `ruff` formatting
+- **React**: Functional components, Tailwind for styling
 
 ---
 
 ## ⚠️ Risk & Safety Notes
 
-- **Start small.** Use `MAX_POSITION_SIZE_USD=10` for the first week of live trading.
+- **Start small.** The default `MAX_POSITION_SIZE_USD` is $50. Consider $5–$10 for your first live week.
 - **New token sniping is high risk.** Most launches fail. Treat snipe proposals as lottery tickets with asymmetric payoff.
-- **Whale copy-trading has lag.** 30-second polling + agent processing means you enter after the whale. Works better for mid-caps than instant-dump micro-caps.
-- **Slippage matters.** 3% default may need to increase for thin liquidity. Jupiter will fail the quote if it can't fill within tolerance.
-- **Your keys stay local.** The private key is loaded from `.env` at startup and never logged or transmitted anywhere except Solana transaction signing.
+- **Whale copy-trading has lag.** 30-second polling + agent processing means you will not front-run the whale. This works better for mid-cap momentum than micro-cap dumps.
+- **Never share your private key.** `.env` is gitignored, but double-check before pushing.
+- **This is not financial advice.** SolSniper is an alpha research tool. You are responsible for every trade you approve.
 
 ---
 
 ## 📜 License
 
-Private / Personal use only. Not open source.
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
-<div align="center">
+## 🙏 Acknowledgments
 
-Built with 🧠 by EliaszDev · Powered by Kimi K2
+- [Helius](https://helius.xyz) — Solana infrastructure & wallet APIs
+- [DexScreener](https://dexscreener.com) — DEX pair data
+- [PumpDev](https://pumpdev.io) — Real-time token launch stream
+- [RugCheck](https://rugcheck.xyz) — Token safety reports
+- [Jupiter](https://jup.ag) — Swap aggregation & execution
+- [nanobot](https://github.com/HKUDS/nanobot) — Multi-agent framework
+- [Kimi](https://www.kimi.com) — LLM backend
 
-</div>
+---
+
+<p align="center">
+  Built with 💜 by <a href="https://github.com/EliaszDev">EliaszDev</a> and contributors.
+</p>
